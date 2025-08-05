@@ -29,6 +29,10 @@ Simple React project built with Vite to manage contacts.
 - The React frontend runs on port 3000
 - There is a separate branch dedicated to saving contacts in localStorage alongside the API
 
----
+## Screenshot
+
+![Contact App Screenshot](./assets/contact-app.PNG)
+
+## Author
 
 Made by VHD (Vahid Hosseini Developer)
