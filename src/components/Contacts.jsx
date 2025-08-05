@@ -1,23 +1,27 @@
+import { useContext, useEffect } from "react";
 import { v4 } from "uuid";
-import styles from "./Contacts.module.css";
 
+import ContactContext from "../context/ContactContext";
+
+import { yupResolver } from "@hookform/resolvers/yup";
+import { useForm } from "react-hook-form";
+import contactSchema from "../validation/contactSchema";
+
+import FormInput from "./FormInput";
 import ContactsList from "./ContactsList";
 import Search from "./Search";
 import Modal from "./Modal";
-import Toast from "./Toast";
-
+import Toast from "../utils/Toast";
+import showToast from "../utils/showToast";
 import inputs from "../constants/inputs";
-import validateContact from "../constants/validateContact";
 
-import ContactContext from "../context/ContactContext";
-import { useContext, useEffect } from "react";
+import { getContacts, addContact, updateContact } from "../services/api";
 
-import { getContacts, addContact } from "../services/api";
+import styles from "./Contacts.module.css";
 
 function Contacts() {
   const {
     dispatch,
-    contact,
     contacts,
     toast,
     search,
@@ -25,66 +29,58 @@ function Contacts() {
     edit,
     ShowCheckedHandler,
     showChecked,
-    errors,
-    setErrors,
-    alert,
-    setAlert,
   } = useContext(ContactContext);
 
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+  } = useForm({
+    resolver: yupResolver(contactSchema),
+    mode: "onChange",
+  });
+
   useEffect(() => {
-    getContacts().then((res) => {
-      dispatch({ type: "SET_CONTACTS", payload: res.data });
-    });
+    if (!edit) {
+      reset({
+        name: "",
+        lastName: "",
+        email: "",
+        phone: "",
+      });
+    }
+  }, [edit, reset]);
+
+  const editHandler = (id) => {
+    const ContactEdited = contacts.find((contact) => contact.id === id);
+    if (!ContactEdited) return;
+    dispatch({ type: "SET_CONTACT", payload: ContactEdited });
+    dispatch({ type: "EDIT", payload: id });
+    reset(ContactEdited);
+  };
+
+  useEffect(() => {
+    getContacts()
+      .then((res) => {
+        dispatch({ type: "SET_CONTACTS", payload: res.data });
+      })
+      .catch((err) => {
+        console.error("Error fetching contacts:", err);
+      });
   }, []);
 
-  const filteredContacts = contacts.filter(
-    (contact) =>
-      (contact.name || "").includes(search) ||
-      (contact.lastName || "").includes(search) ||
-      (contact.email || "").includes(search)
-  );
+  const filteredContacts = contacts.filter((contact) => {
+    const searchItem = search.toLowerCase();
+    return (
+      contact.name?.toLowerCase().includes(searchItem) ||
+      contact.lastName?.toLowerCase().includes(searchItem) ||
+      contact.email?.toLowerCase().includes(searchItem)
+    );
+  });
 
-  const changeHandler = (event) => {
-    const { name, value } = event.target;
-
-    const updatedContact = { ...contact, [name]: value };
-
-    dispatch({
-      type: "SET_CONTACT",
-      payload: updatedContact,
-    });
-
-    const newFieldError = validateContact(updatedContact)[name];
-    setErrors((prevErrors) => {
-      const newErrors = { ...prevErrors };
-      if (!newFieldError) {
-        delete newErrors[name];
-      } else {
-        newErrors[name] = newFieldError;
-      }
-      return newErrors;
-    });
-  };
-  const addHandler = () => {
-    if (
-      !contact.name &&
-      !contact.lastName &&
-      !contact.email &&
-      !contact.phone
-    ) {
-      setAlert("Please enter valid data");
-      return;
-    }
-
-    const errors = validateContact(contact);
-    setErrors(errors);
-
-    if (Object.keys(errors).length > 0) {
-      return;
-    }
-
-    setAlert("");
-    const newContact = { ...contact, id: v4(), checked: false };
+  const addHandler = handleSubmit((data) => {
+    const newContact = { ...data, id: v4(), checked: false };
 
     addContact(newContact).then((res) => {
       dispatch({
@@ -92,45 +88,58 @@ function Contacts() {
         payload: [...contacts, res.data],
       });
       dispatch({ type: "CLEAR_CONTACT" });
+      reset();
     });
-  };
+  });
+
+  const updateHandler = handleSubmit((data) => {
+    const updatedContact = { ...data, id: edit };
+    updateContact(edit, updatedContact)
+      .then(() => getContacts())
+      .then((res) => {
+        dispatch({ type: "SET_CONTACTS", payload: res.data });
+        dispatch({ type: "CLEAR_CONTACT" });
+        dispatch({ type: "EDIT", payload: null });
+        reset();
+        showToast(setToast, "Contact updated successfully!", "success");
+      })
+      .catch(() => {
+        showToast(
+          setToast,
+          "Failed to update contact. Please try again.",
+          "error"
+        );
+      });
+  });
 
   return (
     <>
       <div className={styles.container}>
-        <div className={styles.form}>
-          {inputs.map((input, index) => (
-            <div key={index} className={styles.inputGroup}>
-              <div>
-                <input
-                  type={input.type}
-                  placeholder={input.placeholder}
-                  name={input.name}
-                  value={contact[input.name]}
-                  onChange={changeHandler}
-                  className={`${errors[input.name] ? styles.invalid : ""}`}
-                />
-              </div>
-              <div>
-                {errors[input.name] && (
-                  <p className={styles.alertEmptyField}>
-                    {errors[input.name] || ""}
-                  </p>
-                )}
-              </div>
-            </div>
+        <form className={styles.form} onSubmit={addHandler}>
+          {inputs.map((input) => (
+            <FormInput
+              key={input.name}
+              type={input.type}
+              label={input.placeholder}
+              name={input.name}
+              register={register}
+              errors={errors}
+            />
           ))}
+
           {edit ? (
             <>
               <button
+                type="button"
                 className={styles.updateContact}
-                onClick={() =>
-                  dispatch({ type: "SET_MODAL", payload: "confirmUpdate" })
-                }
+                onClick={() => {
+                  dispatch({ type: "SET_MODAL", payload: "confirmUpdate" });
+                }}
               >
                 Update Contact
               </button>
               <button
+                type="button"
                 className={styles.cancelUpdateContact}
                 onClick={() => {
                   dispatch({ type: "EDIT", payload: null });
@@ -141,12 +150,9 @@ function Contacts() {
               </button>
             </>
           ) : (
-            <button className={styles.addContact} onClick={addHandler}>
-              Add Contact
-            </button>
+            <button className={styles.addContact}>Add Contact</button>
           )}
-        </div>
-        <div className={styles.alert}>{alert && <p> {alert}</p>}</div>
+        </form>
 
         <div className={styles.editBox}>
           <button className={styles.selectBtn} onClick={ShowCheckedHandler}>
@@ -166,9 +172,9 @@ function Contacts() {
           <Search />
         </div>
 
-        <ContactsList contacts={filteredContacts} />
+        <ContactsList contacts={filteredContacts} editHandler={editHandler} />
 
-        <Modal />
+        <Modal reset={reset} updateHandler={updateHandler} />
       </div>
 
       {toast && (

@@ -1,10 +1,13 @@
+import { useContext } from "react";
+import ContactContext from "../context/ContactContext";
+
 import styles from "./ContactItem.module.css";
 
-import ContactContext from "../context/ContactContext";
-import { useContext } from "react";
-
-function ContactItem({ data: { id, name, lastName, email, phone, checked } }) {
-  const { dispatch, setSelectedId, toggleChecked, showChecked, editHandler } =
+function ContactItem({
+  data: { id, name, lastName, email, phone, checked },
+  editHandler,
+}) {
+  const { dispatch, setSelectedId, toggleChecked, showChecked } =
     useContext(ContactContext);
 
   return (
@@ -32,7 +35,7 @@ function ContactItem({ data: { id, name, lastName, email, phone, checked } }) {
           dispatch({ type: "SET_MODAL", payload: "deleteSingle" });
         }}
       >
-        🗑
+        🗑️
       </button>
       <button onClick={() => editHandler(id)}>📝</button>
     </li>

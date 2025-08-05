@@ -1,15 +1,14 @@
-import styles from "./Modal.module.css";
-
 import ContactContext from "../context/ContactContext";
 import { useContext } from "react";
 
-function Modal() {
+import styles from "./Modal.module.css";
+
+function Modal({ updateHandler }) {
   const {
     dispatch,
     modalType,
     deleteHandler,
     selectedId,
-    updateHandler,
     deleteSelectedHandler,
   } = useContext(ContactContext);
 
@@ -22,7 +21,9 @@ function Modal() {
       ? "Are you sure you want to confirm the changes?"
       : "";
 
-  const closeModal = () => dispatch({ type: "SET_MODAL", payload: null });
+  const closeModal = () => {
+    dispatch({ type: "SET_MODAL", payload: null });
+  };
 
   const confirmAction = () => {
     if (modalType === "deleteSingle" && selectedId) {
@@ -44,7 +45,13 @@ function Modal() {
         <p>{message}</p>
         <div className={styles.Btn}>
           <button onClick={closeModal}>No</button>
-          <button onClick={confirmAction}>Yes</button>
+          <button
+            onClick={() => {
+              confirmAction();
+            }}
+          >
+            Yes
+          </button>
         </div>
       </div>
     </div>

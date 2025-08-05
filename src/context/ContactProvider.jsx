@@ -1,9 +1,8 @@
-import { useState } from "react";
+import { useState, useReducer } from "react";
 import ContactContext from "./ContactContext";
-import validateContact from "../constants/validateContact";
-import { useReducer } from "react";
 import { initialState, contactReducer } from "./contactReducer";
-import { deleteContact, getContacts, updateContact } from "../services/api";
+import { deleteContact, getContacts } from "../services/api";
+import showToast from "../utils/showToast";
 
 function ContactProvider({ children }) {
   const [state, dispatch] = useReducer(contactReducer, initialState);
@@ -12,7 +11,6 @@ function ContactProvider({ children }) {
   const [showChecked, setShowChecked] = useState(false);
   const [toast, setToast] = useState(null);
   const [errors, setErrors] = useState({});
-  const [alert, setAlert] = useState("");
   const [search, setSearch] = useState("");
 
   const toggleChecked = (id) => {
@@ -26,66 +24,25 @@ function ContactProvider({ children }) {
     setShowChecked(!showChecked);
   };
 
-  const editHandler = (id) => {
-    const ContactEdited = state.contacts.find((contact) => contact.id === id);
-    if (!ContactEdited) return;
-    dispatch({ type: "SET_CONTACT", payload: ContactEdited });
-    dispatch({ type: "EDIT", payload: id });
-  };
-
   const deleteHandler = (id) => {
     deleteContact(id).then(() => {
       getContacts().then((res) => {
         dispatch({ type: "SET_CONTACTS", payload: res.data });
+        dispatch({ type: "SET_MODAL", payload: null });
       });
     });
 
-    showToast("Contact deleted!", "error");
-  };
-
-  const showToast = (message, type = "success") => {
-    setToast({ message, type });
-    setTimeout(() => {
-      setToast(null);
-    }, 3000);
-  };
-
-  const updateHandler = () => {
-    if (
-      !state.contact.name &&
-      !state.contact.lastName &&
-      !state.contact.email &&
-      !state.contact.phone
-    ) {
-      setAlert("Please enter valid data");
-      return;
-    }
-
-    const errors = validateContact(state.contact);
-    setErrors(errors);
-
-    if (Object.keys(errors).length > 0) {
-      return;
-    }
-
-    const updatedContact = { ...state.contact, id: state.edit };
-
-    updateContact(state.edit, updatedContact)
-      .then(() => getContacts())
-      .then((res) => {
-        dispatch({ type: "SET_CONTACTS", payload: res.data });
-        dispatch({ type: "CLEAR_CONTACT" });
-        dispatch({ type: "EDIT", payload: null });
-        setAlert("");
-        showToast("Contact updated successfully!", "success");
-      });
+    showToast(setToast, "Contact deleted!", "error");
   };
 
   const deleteSelectedHandler = () => {
-    const newContacts = state.contacts.filter((contact) => !contact.checked);
-    deleteContact();
-    dispatch({ type: "SET_CONTACTS", payload: newContacts });
-    showToast("Selected contacts deleted!", "error");
+    const checkedContacts = state.contacts.filter((c) => c.checked);
+    Promise.all(checkedContacts.map((contact) => deleteContact(contact.id)))
+      .then(() => getContacts())
+      .then((res) => {
+        dispatch({ type: "SET_CONTACTS", payload: res.data });
+        showToast(setToast, "Selected contacts deleted!", "error");
+      });
   };
 
   const searchHandler = (event) => {
@@ -108,13 +65,9 @@ function ContactProvider({ children }) {
     ShowCheckedHandler,
 
     toggleChecked,
-    editHandler,
     deleteHandler,
     deleteSelectedHandler,
-    updateHandler,
 
-    alert,
-    setAlert,
     errors,
     setErrors,
     toast,
